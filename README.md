@@ -155,6 +155,72 @@ username               app_user
 vault write -f database/rotate-static-creds/my-static-role
 ```
 
+## Architecture
+
+This plugin follows the HashiCorp Vault database plugin architecture pattern using the **ConnectionProducer** interface.
+
+### Design Pattern
+
+The plugin uses a layered architecture:
+
+```
+┌─────────────────────────────────────┐
+│   Vault Database Secrets Engine     │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│    DB2 Plugin (db2DB)                │
+│  - Type()                            │
+│  - Initialize()                      │
+│  - UpdateUser() [Static Rotation]   │
+│  - NewUser() [Not Supported]        │
+│  - DeleteUser() [Not Supported]     │
+└──────────────┬──────────────────────┘
+               │ embeds
+               ▼
+┌─────────────────────────────────────┐
+│  db2ConnectionProducer              │
+│  (DB2-specific connection logic)    │
+└──────────────┬──────────────────────┘
+               │ embeds
+               ▼
+┌─────────────────────────────────────┐
+│  SQLConnectionProducer              │
+│  (Vault SDK - Standard SQL Logic)   │
+│  - Init()                            │
+│  - Connection()                      │
+│  - Close()                           │
+│  - SecretValues()                    │
+└─────────────────────────────────────┘
+```
+
+### Key Components
+
+**db2DB**
+- Main plugin struct implementing `dbplugin.Database` interface
+- Handles DB2-specific business logic
+- Delegates connection management to ConnectionProducer
+
+**db2ConnectionProducer**
+- Embeds `connutil.SQLConnectionProducer` from Vault SDK
+- Provides DB2-specific connection handling
+- Inherits standard SQL connection pooling, caching, and lifecycle management
+
+**SQLConnectionProducer** (from Vault SDK)
+- Manages database connection lifecycle
+- Handles connection pooling and configuration
+- Provides thread-safe connection management
+- Implements secret value masking for security
+
+### Benefits of This Architecture
+
+1. **Consistency**: Follows the same pattern as other official Vault database plugins (MySQL, PostgreSQL, etc.)
+2. **Code Reuse**: Leverages battle-tested connection management from Vault SDK
+3. **Thread Safety**: Connection management is handled by proven SDK code
+4. **Maintainability**: Future SDK improvements automatically benefit this plugin
+5. **Security**: Automatic credential masking in logs and error messages
+
 ## Development
 
 ### Prerequisites
@@ -171,6 +237,13 @@ make build
 
 ### Test
 
+**Note**: Full test execution requires IBM DB2 client libraries to be installed. The tests validate:
+- Plugin initialization and configuration
+- Connection producer setup
+- Error handling and validation
+- Static credential rotation logic
+- Secret value masking
+
 ```bash
 make test
 ```
@@ -185,6 +258,21 @@ make fmt
 
 ```bash
 make build-all
+```
+
+### Test Coverage
+
+Run tests with coverage report:
+
+```bash
+go test -v -cover ./...
+```
+
+Generate HTML coverage report:
+
+```bash
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
 ```
 
 ## Troubleshooting
