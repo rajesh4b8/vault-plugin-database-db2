@@ -8,7 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
+	dbplugin "github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 	"github.com/hashicorp/vault/sdk/database/helper/connutil"
 	"github.com/hashicorp/vault/sdk/database/helper/dbutil"
 	_ "github.com/ibmdb/go_ibm_db"
@@ -86,9 +86,15 @@ func (d *db2DB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) 
 	}
 
 	// Get connection from the connection producer
-	db, err := d.Connection(ctx)
+	dbConn, err := d.Connection(ctx)
 	if err != nil {
 		return dbplugin.UpdateUserResponse{}, err
+	}
+
+	// Type assert to *sql.DB
+	db, ok := dbConn.(*sql.DB)
+	if !ok {
+		return dbplugin.UpdateUserResponse{}, fmt.Errorf("unable to use connection")
 	}
 
 	// Get the password change statements
@@ -116,4 +122,16 @@ func (d *db2DB) UpdateUser(ctx context.Context, req dbplugin.UpdateUserRequest) 
 // DeleteUser deletes a user - not supported for static credentials
 func (d *db2DB) DeleteUser(ctx context.Context, req dbplugin.DeleteUserRequest) (dbplugin.DeleteUserResponse, error) {
 	return dbplugin.DeleteUserResponse{}, fmt.Errorf("DeleteUser is not supported for DB2 static credentials plugin")
+}
+
+// secretValues returns the secret values as a map of string to string for error sanitization
+func (d *db2DB) secretValues() map[string]string {
+	secretValuesMap := d.db2ConnectionProducer.SecretValues()
+	result := make(map[string]string)
+	for k, v := range secretValuesMap {
+		if str, ok := v.(string); ok {
+			result[k] = str
+		}
+	}
+	return result
 }

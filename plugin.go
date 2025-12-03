@@ -4,7 +4,7 @@
 package db2
 
 import (
-	"github.com/hashicorp/vault/sdk/database/helper/dbutil"
+	"github.com/hashicorp/vault/sdk/database/dbplugin/v5"
 )
 
 // New creates a new instance of the DB2 database plugin
@@ -12,7 +12,7 @@ func New() (interface{}, error) {
 	db := newDB2()
 
 	// Wrap with error sanitization middleware
-	dbType := dbutil.NewDatabaseErrorSanitizerMiddleware(db, db.SecretValues)
+	dbType := dbplugin.NewDatabaseErrorSanitizerMiddleware(db, db.secretValues)
 
 	return dbType, nil
 }
