@@ -16,6 +16,9 @@ coverage.html
 # Dependency directories
 vendor/
 
+# IBM DB2 CLI driver
+driver/
+
 # IDE
 .idea/
 .vscode/
